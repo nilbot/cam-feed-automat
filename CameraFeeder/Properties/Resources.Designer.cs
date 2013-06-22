@@ -61,6 +61,26 @@ namespace Feeder.Properties {
         }
         
         /// <summary>
+        ///   Looks up a localized resource of type System.Drawing.Bitmap.
+        /// </summary>
+        internal static System.Drawing.Bitmap CircularLoading {
+            get {
+                object obj = ResourceManager.GetObject("CircularLoading", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized resource of type System.Drawing.Bitmap.
+        /// </summary>
+        internal static System.Drawing.Bitmap smiley_face_with_button_ctrl {
+            get {
+                object obj = ResourceManager.GetObject("smiley_face_with_button_ctrl", resourceCulture);
+                return ((System.Drawing.Bitmap)(obj));
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to %USERPROFILE%\Desktop\PCFMonitor\Config.
         /// </summary>
         internal static string UserConfigPath {

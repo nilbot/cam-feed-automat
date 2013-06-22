@@ -223,13 +223,6 @@
     </Page>
   </ItemGroup>
   <ItemGroup>
-    <Resource Include="Common\Images\CircularLoading.png" />
-    <Resource Include="Common\Images\Information.png" />
-    <Resource Include="Common\Images\Question.png" />
-    <Resource Include="Common\Images\Scenarios.png" />
-    <Resource Include="Common\Images\Shield.png" />
-    <Resource Include="Common\Images\Stop.png" />
-    <Resource Include="Common\Images\Warning.png" />
     <BlendEmbeddedFont Include="Fonts\ARLRDBD.TTF">
       <IsSystemFont>True</IsSystemFont>
       <All>True</All>
@@ -256,6 +249,12 @@
       <ProductName>.NET Framework 3.5 SP1</ProductName>
       <Install>false</Install>
     </BootstrapperPackage>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Common\Images\CircularLoading.png" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Common\Images\smiley_face_with_button_ctrl.png" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Import Project="$(SolutionDir)\.nuget\NuGet.targets" Condition="Exists('$(SolutionDir)\.nuget\NuGet.targets')" />

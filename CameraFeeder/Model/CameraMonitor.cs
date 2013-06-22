@@ -7,11 +7,78 @@ using System.Threading.Tasks;
 using AviFile;
 using Feeder.Configuration;
 using System.Drawing.Imaging;
+using Feeder.Properties;
 
 namespace Feeder.Model
 {
+    public delegate StateFn StateFn();
     public class CameraMonitor : /*Image,*/IDisposable
     {
+        private bool _cueRecord;
+
+        public bool CueRecord
+        {
+            get
+            {
+                return _cueRecord;
+            }
+            set
+            {
+                CueRun = false;
+                CueIdle = false;
+                CueAbort = false;
+                _cueRecord = value;
+            }
+        }
+        private bool _cueRun;
+
+        public bool CueRun
+        {
+            get
+            {
+                return _cueRun;
+            }
+            set
+            {
+                CueRecord = false;
+                CueIdle = false;
+                CueAbort = false;
+                _cueRun = value;
+            }
+        }
+        private bool _cueIdle;
+
+        public bool CueIdle
+        {
+            get
+            {
+                return _cueIdle;
+            }
+            set
+            {
+                CueRun = false;
+                CueRecord = false;
+                CueAbort = false;
+                _cueIdle = value;
+            }
+        }
+        private bool _cueAbort;
+        public bool CueAbort
+        {
+            get
+            {
+                return _cueAbort;
+            }
+            set
+            {
+                CueRun = false;
+                CueIdle = false;
+                CueRecord = false;
+                _cueAbort = value;
+            }
+        }
+
+
         private readonly IMasterStateMachine _controller;
         private readonly Stack<StateMachineEnum> _stateStorage;
         private Bitmap[] _data;
@@ -30,7 +97,17 @@ namespace Feeder.Model
 
             _controller.UniversalStart += start;
             _controller.UniversalStop += stop;
+            CueIdle = true;
+            new Thread(runSm).Start();
+        }
 
+        private void runSm()
+        {
+            StateFn _state = initFn;
+            while (_state != null)
+            {
+                _state = _state();
+            }
         }
 
         public StateMachineEnum CurrentState { get; set; }
@@ -73,41 +150,109 @@ namespace Feeder.Model
             CurrentState = next;
         }
 
+        private StateFn initFn()
+        {
+            _savingIsDone += handleSavingIsDone;
+            RingBuffer.SetPreRingSize(Device.Parameter.FrameRate * Device.Parameter.PreBufferTimeInSeconds);
+            RingBuffer.SetPostRingSize(Device.Parameter.FrameRate * Device.Parameter.PostBufferTimeInSeconds);
+            return idleLoop;
+        }
+
+        private StateFn idleLoop()
+        {
+            if (CueRun)
+            {
+                Device.AutoExposure = true;
+                Device.AutoGain = true;
+                Device.Start();
+                return runLoop;
+            }
+            if (CueIdle)
+            {
+                return idleLoop;
+            }
+            return null;
+
+        }
+
+        private StateFn runLoop()
+        {
+            if (CueIdle)
+            {
+                Device.Stop();
+                Dispose();
+                return idleLoop;
+            }
+            if (CueRun)
+            {
+                return runLoop;
+            }
+            if (CueRecord)
+            {
+                RingBuffer.SnapshotReady -= SnapshotReady;
+                RingBuffer.SnapshotReady += SnapshotReady;
+                var _test = new Bitmap(Resources.smiley_face_with_button_ctrl);
+                RingBuffer.SavePreSnapshot(_test);
+                var _tuple = this.CreateVideoStream();
+                RegisterSaveFileTask(_tuple);
+                return savingState;
+            }
+            return null;
+        }
+
+        private StateFn savingState()
+        {
+            if (CueRun)
+            {
+                clearWorkStatus();
+                return runLoop;
+            }
+            if (CueAbort)
+            {
+                abortWork();
+                return null;
+            }
+            return savingState;
+        }
         public void Signaled(object sender, EventArgs e)
         {
 
-            foreach (var _a in getCameraStateMachineAdjacencyList(CurrentState))
-            {
-                if (_a.Next == StateMachineEnum.SAVING)
-                {
-                    updateState(StateMachineEnum.SAVING);
-                    _a.Execute();
-                }
-            }
+            //foreach (var _a in getCameraStateMachineAdjacencyList(CurrentState))
+            //{
+            //    if (_a.Next == StateMachineEnum.SAVING)
+            //    {
+            //        updateState(StateMachineEnum.SAVING);
+            //        _a.Execute();
+            //    }
+            //}
+            CueRecord = true;
+
         }
 
         private void stop(object sender, EventArgs e)
         {
-            foreach (var _a in getCameraStateMachineAdjacencyList(CurrentState))
-            {
-                if (_a.Next == StateMachineEnum.STOPPED)
-                {
-                    updateState(StateMachineEnum.STOPPED);
-                    _a.Execute();
-                }
-            }
+            //foreach (var _a in getCameraStateMachineAdjacencyList(CurrentState))
+            //{
+            //    if (_a.Next == StateMachineEnum.STOPPED)
+            //    {
+            //        updateState(StateMachineEnum.STOPPED);
+            //        _a.Execute();
+            //    }
+            //}
+            CueIdle = true;
         }
 
         private void start(object sender, EventArgs e)
         {
-            foreach (var _a in getCameraStateMachineAdjacencyList(CurrentState))
-            {
-                if (_a.Next == StateMachineEnum.RUNNING)
-                {
-                    updateState(StateMachineEnum.RUNNING);
-                    _a.Execute();
-                }
-            }
+            //foreach (var _a in getCameraStateMachineAdjacencyList(CurrentState))
+            //{
+            //    if (_a.Next == StateMachineEnum.RUNNING)
+            //    {
+            //        updateState(StateMachineEnum.RUNNING);
+            //        _a.Execute();
+            //    }
+            //}
+            CueRun = true;
         }
 
         ~CameraMonitor()
@@ -139,13 +284,13 @@ namespace Feeder.Model
             RingBuffer.Enqueue(Device.Bitmap);
         }
 
+/*
         private IEnumerable<StateMachineTraverse> getCameraStateMachineAdjacencyList(StateMachineEnum oldState)
         {
             var _result = new List<StateMachineTraverse>();
             switch (oldState)
             {
                 case StateMachineEnum.SAVING:
-                    //TODO Abort has issue: no way of closing file on will because of third party library, file will be saved truncated.
                     _result.Add(new StateMachineTraverse(oldState, StateMachineEnum.RUNNING, clearWorkStatus));
                     _result.Add(new StateMachineTraverse(oldState, StateMachineEnum.STOPPED, abortWork));
                     break;
@@ -166,7 +311,7 @@ namespace Feeder.Model
                     {
                         RingBuffer.SnapshotReady -= SnapshotReady;
                         RingBuffer.SnapshotReady += SnapshotReady;
-                        var _test = new Bitmap(@"C:\Users\PushCapFeeder\Desktop\PCFMonitor\Config\triger.bmp");
+                        var _test = new Bitmap(Resources.smiley_face_with_button_ctrl);
                         RingBuffer.SavePreSnapshot(_test);
                         var _tuple = this.CreateVideoStream();
                         RegisterSaveFileTask(_tuple);
@@ -177,18 +322,21 @@ namespace Feeder.Model
 
             return _result;
         }
+*/
 
         private void handleSavingIsDone(object sender, EventArgs e)
         {
             if (!(bool)sender)
             {
                 RingBuffer.Clear();
-                updateState(StateMachineEnum.RUNNING); 
+                updateState(StateMachineEnum.RUNNING);
+                CueRun = true;
             }
             else
             {
                 updateState(StateMachineEnum.STOPPED);
                 Dispose();
+                CueAbort = true;
             }
         }
 
@@ -226,7 +374,11 @@ namespace Feeder.Model
                 //for (int n = 0; n<tmp.Length; n++)
                 {
                     if (((ThreadStartParameter)threadStart).Token.IsCancellationRequested)
+                    {
+                        manager.Close();
+                        dispose(ref _data); 
                         return;
+                    }
 
 
                     if (Device.Parameter.ColorFormat == PixelFormat.Format32bppRgb)
